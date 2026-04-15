@@ -1,0 +1,97 @@
+<!DOCTYPE html> /* tells browser this is an HTML5 document */
+<html lang="en"> // browser language is English
+<head>
+  // page setup 
+  <meta charset="UTF-8"/> // tells browser to use UTF-8 character encoding so all special charcaters display correctly
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/> // makes page scale correctly 
+  <title>Pixelate — Mad Lab</title> // text shown in browser tab
+  <link rel="stylesheet" href="style.css"/> // links shared CSS file for styles used across all pages
+  <style>
+    /* game page body*/
+    body.game-page { background:#000; overflow:hidden; margin:0; } /*black background, hide scrollbars since game fills full screen*/
+    /* canvas*/ 
+    #game-canvas { display:block; }
+    /* HUD (heads-up display) container that holds game info like lives, charge bar, and round number; positioned as an overlay on top of the canvas*/
+    #hud {
+      position:absolute; top:0; left:0; right:0;
+      display:flex; justify-content:space-between; align-items:center;
+      padding:12px 20px; z-index:10; pointer-events:none;
+      background:linear-gradient(to bottom,rgba(0,0,0,0.5),transparent);
+    }
+    .hud-txt {
+      font-family:'Courier New',monospace; font-size:18px; font-weight:bold;
+      color:#0f0; text-shadow:0 0 8px #0f0; letter-spacing:2px;
+    }
+    #charge-bar-wrap {
+      flex:1; margin:0 20px; height:18px;
+      border:2px solid #0f0; border-radius:9px;
+      box-shadow:0 0 10px #0f0; overflow:hidden; background:rgba(0,0,0,0.4);
+    }
+    #charge-bar {
+      height:100%; width:0%; background:linear-gradient(90deg,#0f0,#ff0,#f80);
+      border-radius:9px; transition:width 0.2s;
+      box-shadow:0 0 8px #0f0;
+    }
+    #overlay {
+      display:none; position:absolute; inset:0;
+      background:rgba(0,0,0,0.88);
+      flex-direction:column; align-items:center; justify-content:center; z-index:20;
+    }
+    #overlay.show { display:flex; }
+    #overlay h2 {
+      font-family:'Courier New',monospace; font-size:42px; color:rgb(13, 150, 13);
+      text-shadow:0 0 20px rgb(7, 118, 7); margin-bottom:10px; letter-spacing:4px;
+    }
+    #overlay p {
+      font-family:'Courier New',monospace; font-size:14px; color:#aaa;
+      margin-bottom:28px; letter-spacing:2px; text-align:center;
+      max-width:500px; line-height:1.9;
+    }
+    #overlay button { /* start, try agaikn, and play again button inside overlay*/
+      font-family:'Courier New',monospace; font-size:16px; padding:12px 36px;
+      background:rgb(11, 137, 11); color:#000; border:none; border-radius:6px;
+      cursor:pointer; font-weight:bold; letter-spacing:2px;
+    }
+    #overlay button:hover { background:#fff; }
+    #overlay button:disabled { background:#444; color:#888; cursor:default; }
+    #round-announce {
+      display:none; position:absolute; inset:0;
+      align-items:center; justify-content:center; z-index:15; pointer-events:none;
+    }
+    #round-announce.show { display:flex; }
+    #round-announce span {
+      font-family:'Courier New',monospace; font-size:72px; color:#ff0;
+      text-shadow:0 0 30px #f80; letter-spacing:6px; animation:popIn 0.4s ease;
+    }
+    /* pop in animation - round announcement text scales up from small and fades in */
+    @keyframes popIn { from{transform:scale(0.3);opacity:0} to{transform:scale(1);opacity:1} }
+    /*webcam feed used by mediapipe */
+    #vid-g { display:none; }
+  </style>
+</head>
+<body class="game-page">
+  <a href="index.html" class="back-btn">← Back</a>
+  <canvas id="game-canvas"></canvas>
+
+  <div id="hud">
+    <span class="hud-txt" id="lives-display">♥♥♥</span>
+    <div id="charge-bar-wrap"><div id="charge-bar"></div></div>
+    <span class="hud-txt" id="round-display">ROUND 1</span>
+  </div>
+
+  <div id="round-announce"><span id="round-text">ROUND 1</span></div>
+
+  <div id="overlay" class="show">
+    <h2 id="ov-title">MAD LAB</h2>
+    <p id="ov-msg">You are the mad scientist.<br>Protect your experiment from enemies!<br>Move your body to hit them away.<br><br>Fill the charge bar to complete each round.<br>3 hits to the orb = GAME OVER.</p>
+    <button id="ov-btn">START EXPERIMENT</button>
+  </div>
+
+  <video id="vid-g" autoplay playsinline muted></video>
+/* scripts*/ 
+/* loaded in order : mediapipe utilities, pose detection, then game logic */
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

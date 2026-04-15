@@ -1,0 +1,52 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: sans-serif; /* default font for all text*/
+  background: #fff; /*white background*/
+  color: #111; /*black text*/
+}
+
+ 
+body.home {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.logo { /* mad lab logo pinned to top left corner*/
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+
+.btn-row { /* container that holds home screen buttons*/
+  margin: auto;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.big-btn { /* home screen  buttons*/
+  display: inline-block;
+  padding: 14px 32px;
+  background: #000;
+  color: #fff;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.big-btn:hover { /* hover effect for home screen buttons*/
+  background: #333;
+}
+

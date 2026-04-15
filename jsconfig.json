@@ -1,0 +1,6 @@
+{
+  "compilerOptions": {
+    "checkJs": false // tells VS code not to type-check javascript files
+  },
+  "exclude": ["node_modules"] // tells VS code to ignore node modules folder - no need to check installed libraries
+}
