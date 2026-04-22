@@ -1,17 +1,13 @@
-<!DOCTYPE html> /* tells browser this is an HTML5 document */
-<html lang="en"> // browser language is English
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  // page setup 
-  <meta charset="UTF-8"/> // tells browser to use UTF-8 character encoding so all special charcaters display correctly
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/> // makes page scale correctly 
-  <title>Pixelate — Mad Lab</title> // text shown in browser tab
-  <link rel="stylesheet" href="style.css"/> // links shared CSS file for styles used across all pages
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pixelate — Mad Lab</title>
+  <link rel="stylesheet" href="style.css"/>
   <style>
-    /* game page body*/
-    body.game-page { background:#000; overflow:hidden; margin:0; } /*black background, hide scrollbars since game fills full screen*/
-    /* canvas*/ 
+    body.game-page { background:#000; overflow:hidden; margin:0; }
     #game-canvas { display:block; }
-    /* HUD (heads-up display) container that holds game info like lives, charge bar, and round number; positioned as an overlay on top of the canvas*/
     #hud {
       position:absolute; top:0; left:0; right:0;
       display:flex; justify-content:space-between; align-items:center;
@@ -39,17 +35,17 @@
     }
     #overlay.show { display:flex; }
     #overlay h2 {
-      font-family:'Courier New',monospace; font-size:42px; color:rgb(13, 150, 13);
-      text-shadow:0 0 20px rgb(7, 118, 7); margin-bottom:10px; letter-spacing:4px;
+      font-family:'Courier New',monospace; font-size:42px; color:#0f0;
+      text-shadow:0 0 20px #0f0; margin-bottom:10px; letter-spacing:4px;
     }
     #overlay p {
       font-family:'Courier New',monospace; font-size:14px; color:#aaa;
       margin-bottom:28px; letter-spacing:2px; text-align:center;
       max-width:500px; line-height:1.9;
     }
-    #overlay button { /* start, try agaikn, and play again button inside overlay*/
+    #overlay button {
       font-family:'Courier New',monospace; font-size:16px; padding:12px 36px;
-      background:rgb(11, 137, 11); color:#000; border:none; border-radius:6px;
+      background:#0f0; color:#000; border:none; border-radius:6px;
       cursor:pointer; font-weight:bold; letter-spacing:2px;
     }
     #overlay button:hover { background:#fff; }
@@ -63,9 +59,7 @@
       font-family:'Courier New',monospace; font-size:72px; color:#ff0;
       text-shadow:0 0 30px #f80; letter-spacing:6px; animation:popIn 0.4s ease;
     }
-    /* pop in animation - round announcement text scales up from small and fades in */
     @keyframes popIn { from{transform:scale(0.3);opacity:0} to{transform:scale(1);opacity:1} }
-    /*webcam feed used by mediapipe */
     #vid-g { display:none; }
   </style>
 </head>
@@ -83,13 +77,12 @@
 
   <div id="overlay" class="show">
     <h2 id="ov-title">MAD LAB</h2>
-    <p id="ov-msg">You are the mad scientist.<br>Protect your experiment from enemies!<br>Move your body to hit them away.<br><br>Fill the charge bar to complete each round.<br>3 hits to the orb = GAME OVER.</p>
+    <p id="ov-msg">Stand back so your full body is visible.<br>Good luck, scientist.</p>
     <button id="ov-btn">START EXPERIMENT</button>
   </div>
 
   <video id="vid-g" autoplay playsinline muted></video>
-/* scripts*/ 
-/* loaded in order : mediapipe utilities, pose detection, then game logic */
+
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
   <script src="js/game.js"></script>

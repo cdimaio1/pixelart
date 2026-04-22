@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mad Lab — Intro</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    /*  page setup  */
+    body {
+      margin: 0; padding: 0;
+      background: #1a0a2e;
+      overflow: hidden;
+      font-family: 'Arial Black', sans-serif;
+    }
+
+    /* full screen canvas  */
+    #intro-canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /*  skip button  */
+    #skip-btn {
+      position: absolute;
+      bottom: 24px; right: 24px;
+      background: transparent;
+      color: rgba(255,255,255,0.4);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px;
+      padding: 6px 16px;
+      font-size: 12px;
+      cursor: pointer;
+      letter-spacing: 2px;
+      font-family: 'Courier New', monospace;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    #skip-btn:hover {
+      color: #fff;
+      border-color: rgba(255,255,255,0.6);
+    }
+
+    /*  progress dots at bottom  */
+    #progress {
+      position: absolute;
+      bottom: 28px; left: 0; right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      transition: background 0.3s;
+    }
+    .dot.active {
+      background: #39ff14;
+      border-color: #39ff14;
+      box-shadow: 0 0 8px #39ff14;
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="intro-canvas"></canvas>
+  <button id="skip-btn">SKIP ▶</button>
+  <div id="progress">
+    <div class="dot" id="d0"></div>
+    <div class="dot" id="d1"></div>
+    <div class="dot" id="d2"></div>
+    <div class="dot" id="d3"></div>
+    <div class="dot" id="d4"></div>
+    <div class="dot" id="d5"></div>
+  </div>
+
+ <script src="js/game.js"></script>
+  <script src="js/intro.js"></script>
+</body>
+</html>

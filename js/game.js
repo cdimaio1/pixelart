@@ -1,6 +1,6 @@
 // variables from game.html
 var canvas    = document.getElementById('game-canvas'); // full drawing screen
-var ctx       = canvas.getContext('2d'); // drawng tool
+var ctx    = canvas ? canvas.getContext('2d') : null;
 var vid       = document.getElementById('vid-g'); // holds webcam feed for MediaPipe
 var livesEl   = document.getElementById('lives-display'); // displays remaining lives as hearts
 var chargeBar = document.getElementById('charge-bar'); // // green progress bar
@@ -40,11 +40,19 @@ var LEAN_THRESH  = 0.08;   // how far hips must shift to count as a lean
 var leanDir      = 0;      // stores the result of lean detection: -1=left, 0=none, 1=right
 var leanCooldown = 0; // prevents same lean from triggering multiple dodges
 
-// Resize canvas to fill window and update on resize
-function resize(){ canvas.width=window.innerWidth; canvas.height=window.innerHeight; }
-resize();
-window.addEventListener('resize', resize);
+// guard — if game canvas doesn't exist we're on intro page
+// only initialise game logic if on game page
+var onGamePage = !!document.getElementById('game-canvas');
 
+function resize(){ // makes canvas fill entire browser window
+  if(!canvas) return; // safety check
+  canvas.width=window.innerWidth;
+  canvas.height=window.innerHeight;
+}
+if(onGamePage){
+  resize(); // runs function once when page loads
+  window.addEventListener('resize', resize); // sets up listener so everytime user resizes browser, the resize function runs again to adjust canvas size
+}
 // display current lives, charge, and round in HUD
 function updateHUD(){ // 
   var h=''; for(var i=0;i<3;i++) h+=i<(3-orbHits)?'♥':'♡'; // build string of hearts based on remaining lives
@@ -81,15 +89,14 @@ function initPose(){ // called when player clicks start button; initializes Medi
     ovBtn.disabled=false; }); // re-enable start button so user can try again 
 }
 
-ovBtn.addEventListener('click', function(){ // // when start button is clicked... 
-  ovBtn.disabled=true; // when button is clicked, disable it to prevent multiple clicks while game is starting
-  ovTitle.textContent='LOADING...'; // shows loading message
-  ovMsg.textContent='Starting body tracking...'; // shows body tracking message
-  resetGame();// resets all game variables to initial state - if a player, wanted to play again needs to reset everything
-  if(!pose){ initPose(); }// checks if MediaPipe has been swt up yet; if pose is null (only when user plays for very first time), calls initPose() to set up MediaPipe and start camers
-  else { overlay.classList.remove('show'); startRound(); } // if pose already exists (player has played before), skip setup and jump right into starting the round, MediaPipe already running
-});
-
+if(onGamePage){
+  ovBtn.addEventListener('click', function(){
+    ovBtn.disabled=true; ovTitle.textContent='LOADING...'; ovMsg.textContent='Starting body tracking...';
+    resetGame();
+    if(!pose){ initPose(); }
+    else { overlay.classList.remove('show'); startRound(); }
+  });
+}
 // round flow 
 function startRound(){ // resets variables for new round; called at start of each round after round announcement
   transitioning=false; running=true; // sets game state to running 
@@ -191,32 +198,931 @@ function spawnEnemy(){
     shootInterval:Math.floor(120+Math.random()*80-(round*20)) //  how many frames between shots; starts between 120 and 200 frames (2-3.3 seconds), minus 20 frames per round to make it more challenging; adds random amount to make it less predictable
   });
 }
+// Chicken
+function drawChicken(e) {
+  var x    = e.x, y = e.y;
+  var flip = e.vx < 0;
+  var leg  = Math.sin(e.leg) * 12;
+  var flap = Math.sin(e.leg * 1.8) * 8;
 
-function drawEnemy(e){  // draws enemy on canvas based on its properties; called each frame for each enemy in array
-  var col=COLORS[e.type]; // gets color for enemy based on its type property
-  var ex=e.vx>0?-1:1; // calculates direction enemy is facing based on its velocity; if vx is positive (moving right), ex is -1 (facing left); if vx is negative (moving left), ex is 1 (facing right);  used to flip enemy features so they look in the direction they're moving
+  ctx.save();
+  if (flip) { ctx.translate(x * 2, 0); ctx.scale(-1, 1); }
+
+  // flying feathers scattered around body : drift and rotate each frame
+  ctx.fillStyle = '#c47820';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1;
+  var featherOffsets = [
+    [-30,-10,-0.8],[28,-5,0.5],[-22,15,1.2],
+    [32,10,-0.4],[-35,5,0.9],[20,-18,-1.1]
+  ];
+  for (var f = 0; f < featherOffsets.length; f++) {
+    var fo = featherOffsets[f];
+    var fx = x + fo[0] + Math.sin(frameCount*0.08+f)*4;
+    var fy = y + fo[1] + Math.sin(frameCount*0.1+f)*3;
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.rotate(fo[2] + Math.sin(frameCount*0.06+f)*0.3);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 3, 8, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  // skinny legs kicking outward
+  ctx.strokeStyle = '#c47820';
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x-8, y+20); ctx.lineTo(x-20, y+36+leg); ctx.lineTo(x-30, y+44+leg); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x-36, y+42+leg); ctx.lineTo(x-22, y+46+leg); ctx.lineTo(x-18, y+40+leg); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x+8, y+20); ctx.lineTo(x+22, y+34-leg); ctx.lineTo(x+34, y+42-leg); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x+28, y+40-leg); ctx.lineTo(x+42, y+44-leg); ctx.lineTo(x+44, y+38-leg); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // big round messy brown body
+  ctx.fillStyle = '#c47820';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(x, y, 32, 26, 0.15, 0, Math.PI*2);
+  ctx.fill(); ctx.stroke();
+
+  // jagged feather texture on body edges
+  ctx.strokeStyle = '#a06010';
+  ctx.lineWidth = 1.5;
+  var bodySpikes = [[-28,-8],[-26,4],[-20,16],[-10,22],[5,24],[20,18],[28,5],[26,-10],[16,-20],[0,-24],[-16,-22]];
+  for (var s = 0; s < bodySpikes.length; s++) {
+    ctx.beginPath();
+    ctx.moveTo(x+bodySpikes[s][0]*0.7, y+bodySpikes[s][1]*0.7);
+    ctx.lineTo(x+bodySpikes[s][0],     y+bodySpikes[s][1]);
+    ctx.stroke();
+  }
+
+  // left wing  flaps up and down
+  ctx.fillStyle = '#c47820';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x-12, y-5);
+  ctx.bezierCurveTo(x-40, y-20-flap, x-48, y+5-flap, x-30, y+14);
+  ctx.bezierCurveTo(x-20, y+18, x-10, y+8, x-12, y-5);
+  ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#a06010'; ctx.lineWidth = 1.5;
+  for (var wf = 0; wf < 4; wf++) {
+    ctx.beginPath();
+    ctx.moveTo(x-32+wf*5, y+10-flap*0.3);
+    ctx.lineTo(x-38+wf*5, y+18-flap*0.3);
+    ctx.stroke();
+  }
+
+  // right wing  flaps opposite phase
+  ctx.fillStyle = '#c47820';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x+14, y-5);
+  ctx.bezierCurveTo(x+36, y-15+flap, x+42, y+5+flap, x+26, y+12);
+  ctx.bezierCurveTo(x+16, y+16, x+10, y+6, x+14, y-5);
+  ctx.fill(); ctx.stroke();
+
+  // stretched neck craning forward like its screaming
+  ctx.fillStyle = '#c47820';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x+8,  y-18);
+  ctx.bezierCurveTo(x+5, y-50, x+24, y-55, x+28, y-42);
+  ctx.bezierCurveTo(x+30, y-30, x+18, y-20, x+8, y-18);
+  ctx.fill(); ctx.stroke();
+
+  // round white head
+  ctx.fillStyle = '#f5f0e0';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(x+26, y-52, 20, 18, -0.3, 0, Math.PI*2);
+  ctx.fill(); ctx.stroke();
+
+  // spiky red comb
+  ctx.fillStyle = '#e82020';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x+10, y-62);
+  ctx.lineTo(x+14, y-76);
+  ctx.lineTo(x+19, y-64);
+  ctx.lineTo(x+23, y-80);
+  ctx.lineTo(x+28, y-65);
+  ctx.lineTo(x+33, y-73);
+  ctx.lineTo(x+38, y-62);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // red wattle under beak
+  ctx.fillStyle = '#e82020';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x+14, y-42, 7, 10, 0.2, 0, Math.PI*2);
+  ctx.fill(); ctx.stroke();
+
+  // top beak wide open
+  ctx.fillStyle = '#e8a020';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x+38, y-56); ctx.lineTo(x+56, y-50); ctx.lineTo(x+40, y-48); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // bottom beak 
+  ctx.beginPath();
+  ctx.moveTo(x+38, y-46); ctx.lineTo(x+54, y-36); ctx.lineTo(x+36, y-38); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // dark red open mouth interior
+  ctx.fillStyle = '#8b0000';
+  ctx.beginPath();
+  ctx.moveTo(x+40, y-48); ctx.lineTo(x+53, y-44); ctx.lineTo(x+52, y-38); ctx.lineTo(x+38, y-42); ctx.closePath();
+  ctx.fill();
+
+  // tongue
+  ctx.fillStyle = '#cc2020';
+  ctx.beginPath();
+  ctx.ellipse(x+45, y-42, 5, 3, 0.3, 0, Math.PI*2);
+  ctx.fill();
+
+  // huge wild googly eyes
+  ctx.fillStyle = '#fff';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(x+30, y-56, 10, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x+44, y-54, 9,  0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+  //  pupils
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(x+33, y-54, 3.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+46, y-52, 3,   0, Math.PI*2); ctx.fill();
+
+  // eye reflection
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x+34, y-56, 1.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+47, y-54, 1.2, 0, Math.PI*2); ctx.fill();
+
+  // thick angry eyebrows 
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x+20, y-64); ctx.lineTo(x+34, y-68); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+54, y-62); ctx.lineTo(x+40, y-66); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  ctx.restore();
+if(!window.introMode){
+  ctx.font = 'bold 11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+  ctx.strokeText('ESCAPED!', x, y + 68);
+  ctx.fillStyle = '#fff';
+  ctx.fillText('ESCAPED!', x, y + 68);
+}
+
+  
+}
+// Inspector
+function drawInspector(e) {
+  var x     = e.x, y = e.y;
+  var flip  = e.vx < 0;
+  var leg   = Math.sin(e.leg) * 10;
+  var sweat = Math.sin(frameCount * 0.1) * 2;
+
+  ctx.save();
+  if (flip) { ctx.translate(x * 2, 0); ctx.scale(-1, 1); }
+
+  // oversized briefcase
+  ctx.fillStyle = '#8B4513';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(x+18, y+5, 52, 38, [5]);
+  ctx.fill(); ctx.stroke();
+
+  // inner panel detail
+  ctx.fillStyle = '#a0522d';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(x+22, y+9, 44, 30, [3]);
+  ctx.fill(); ctx.stroke();
+
+  // case handle
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x+32, y+5);
+  ctx.bezierCurveTo(x+32, y-6, x+58, y-6, x+58, y+5);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // gold latch
+  ctx.fillStyle = '#f7c948';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(x+41, y+20, 10, 8);
+  ctx.strokeRect(x+41, y+20, 10, 8);
+  ctx.fillStyle = '#e0b030';
+  ctx.fillRect(x+43, y+22, 6, 4);
+
+  // top secret sticker
+  ctx.fillStyle = '#ff4444';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(x+24, y+28, 16, 10, [2]);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 6px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('TOP', x+32, y+34);
+  ctx.fillText('SECRET', x+32, y+40);
+
+  // dark navy pants
+  ctx.strokeStyle = '#1a1a2e';
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x-10, y+28); ctx.lineTo(x-12, y+48+leg); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x+10, y+28); ctx.lineTo(x+12, y+48-leg); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // black shoes
+  ctx.fillStyle = '#111';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x-14, y+54+leg, 12, 6, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(x+14, y+54-leg, 12, 6, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+  // dark navy suit jacket
+  ctx.fillStyle = '#2a3a6a';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(x-22, y-8, 44, 38, [6]);
+  ctx.fill(); ctx.stroke();
+
+  // white shirt
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(x-6, y-8); ctx.lineTo(x+6, y-8);
+  ctx.lineTo(x+4, y+28); ctx.lineTo(x-4, y+28);
+  ctx.closePath(); ctx.fill();
+
+  // crooked red tie
+  ctx.fillStyle = '#cc2020';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x-4, y-6); ctx.lineTo(x+4, y-6);
+  ctx.lineTo(x+7, y+18); ctx.lineTo(x-3, y+18);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // tie knot
+  ctx.fillStyle = '#aa1010';
+  ctx.beginPath();
+  ctx.roundRect(x-3, y-7, 6, 5, [2]);
+  ctx.fill();
+
+  // suit lapels
+  ctx.fillStyle = '#2a3a6a';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x-6, y-8); ctx.lineTo(x-22, y-2); ctx.lineTo(x-16, y+14); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x+6, y-8); ctx.lineTo(x+22, y-2); ctx.lineTo(x+16, y+14); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // suit buttons
+  ctx.fillStyle = '#1a2a5a';
+  for (var b = 0; b < 3; b++) {
+    ctx.beginPath(); ctx.arc(x, y+2+b*8, 2, 0, Math.PI*2); ctx.fill();
+  }
+
+  // arm holding briefcase
+  ctx.strokeStyle = '#2a3a6a';
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x+18, y+5); ctx.lineTo(x+28, y+18); ctx.stroke();
+
+  // free arm waving in panic
+  ctx.beginPath();
+  ctx.moveTo(x-20, y+2);
+  ctx.lineTo(x-32, y-10+Math.sin(frameCount*0.08)*5);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // skin-toned round head
+  ctx.fillStyle = '#f5c8a0';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(x, y-26, 20, 22, 0, 0, Math.PI*2);
+  ctx.fill(); ctx.stroke();
+
+  // nervous blush on cheeks
+  ctx.fillStyle = 'rgba(255,100,100,0.3)';
+  ctx.beginPath(); ctx.ellipse(x-14, y-20, 8, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x+14, y-20, 8, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // slicked back hair 
+  ctx.fillStyle = '#2a1a0a';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y-42, 19, 9, 0, Math.PI, Math.PI*2);
+  ctx.fill(); ctx.stroke();
+
+  // one strand sticking up
+  ctx.strokeStyle = '#2a1a0a';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x+8, y-46);
+  ctx.bezierCurveTo(x+12, y-54, x+18, y-52, x+14, y-44);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // thick black glasses  slightly askew
+  ctx.fillStyle = 'rgba(150,200,255,0.3)';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2.5;
+  ctx.save();
+  ctx.translate(x-9, y-28); ctx.rotate(-0.1);
+  ctx.beginPath(); ctx.roundRect(-9, -7, 17, 13, [3]); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.translate(x+9, y-27); ctx.rotate(0.08);
+  ctx.beginPath(); ctx.roundRect(-8, -7, 17, 13, [3]); ctx.fill(); ctx.stroke();
+  ctx.restore();
+
+  // glasses bridge and arms
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x-1, y-28); ctx.lineTo(x+1, y-28); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x-18, y-28); ctx.lineTo(x-22, y-26); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+18, y-27); ctx.lineTo(x+22, y-25); ctx.stroke();
+
+  // wide nervous eyes — tall ovals
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(x-9, y-28, 6, 7, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(x+9, y-27, 6, 7, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+  // small darting pupils
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(x-8,  y-27, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+10, y-26, 2.5, 0, Math.PI*2); ctx.fill();
+
+  // eye reflection
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x-7,  y-29, 1.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x+11, y-28, 1.2, 0, Math.PI*2); ctx.fill();
+
+  // raised eyebrows
+  ctx.strokeStyle = '#2a1a0a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x-16, y-37); ctx.quadraticCurveTo(x-9, y-42, x-2, y-38); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x+2, y-37);  ctx.quadraticCurveTo(x+9, y-42, x+16, y-38); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // open nervous mouth — small oval
+  ctx.fillStyle = '#8b0000'; ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x, y-14, 6, 5, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.roundRect(x-4, y-17, 8, 4, [1]); ctx.fill();
+
+  // sweat
+  ctx.fillStyle = '#88ccff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x-22, y-30+sweat);
+  ctx.bezierCurveTo(x-26, y-30+sweat, x-28, y-24+sweat, x-24, y-22+sweat);
+  ctx.bezierCurveTo(x-20, y-20+sweat, x-18, y-26+sweat, x-22, y-30+sweat);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x+24, y-34-sweat);
+  ctx.bezierCurveTo(x+28, y-34-sweat, x+30, y-28-sweat, x+26, y-26-sweat);
+  ctx.bezierCurveTo(x+22, y-24-sweat, x+20, y-30-sweat, x+24, y-34-sweat);
+  ctx.fill(); ctx.stroke();
+
+  ctx.restore();
+if(!window.introMode){
+  ctx.font = 'bold 11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+  ctx.strokeText('INSPECTOR', x, y + 72);
+  ctx.fillStyle = '#fff';
+  ctx.fillText('INSPECTOR', x, y + 72);
+}
+
+  
+}
+// Robot
+function drawRobot(e) {
+  var x    = e.x, y = e.y;
+  var flip = e.vx < 0;
+  var leg  = Math.sin(e.leg) * 10;  // leg march animation
+  var spark = frameCount % 40 < 8;  // sparks flash on and off
+
+  ctx.save();
+  if (flip) { ctx.translate(x * 2, 0); ctx.scale(-1, 1); }
+
+  // marching legs
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth   = 8;
+  ctx.lineCap     = 'round';
+
+  // left leg marches forward
+  ctx.beginPath();
+  ctx.moveTo(x - 12, y + 24);
+  ctx.lineTo(x - 14, y + 40 + leg);
+  ctx.stroke();
+
+  // right leg marches back
+  ctx.beginPath();
+  ctx.moveTo(x + 12, y + 24);
+  ctx.lineTo(x + 14, y + 40 - leg);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // feet 
+  ctx.fillStyle   = '#555';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.roundRect(x - 22, y + 38 + leg, 18, 10, [3]);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.roundRect(x + 4,  y + 38 - leg, 18, 10, [3]);
+  ctx.fill(); ctx.stroke();
+
   // body
-  ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI*2); // draws main body circle; takes x,y,radius,start angle, and end angle [full circle]; color based on enemy type; white stroke 
-  ctx.fillStyle=col; ctx.fill(); ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+  
+  ctx.fillStyle   = '#888';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 3;
+  ctx.beginPath();
+  ctx.roundRect(x - 28, y - 10, 56, 36, [8]);
+  ctx.fill(); ctx.stroke();
 
-  // eyes
-  ctx.fillStyle='#fff'; // fill eyes with white
-  ctx.beginPath(); ctx.arc(e.x+ex*e.r*0.25,e.y-e.r*0.2,e.r*0.17,0,Math.PI*2); ctx.fill(); // draw left eye
-  ctx.beginPath(); ctx.arc(e.x+ex*e.r*0.55,e.y-e.r*0.2,e.r*0.17,0,Math.PI*2); ctx.fill(); // draw right eye
-  ctx.fillStyle='#000'; // black pupils
-  ctx.beginPath(); ctx.arc(e.x+ex*e.r*0.27,e.y-e.r*0.2,e.r*0.08,0,Math.PI*2); ctx.fill(); // draw left pupil
-  ctx.beginPath(); ctx.arc(e.x+ex*e.r*0.57,e.y-e.r*0.2,e.r*0.08,0,Math.PI*2); ctx.fill(); // draw right pupil
+  // body panel lines 
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth   = 1.5;
+  for (var r = 0; r < 3; r++) {
+    ctx.beginPath();
+    ctx.moveTo(x - 26, y + 2 + r * 10);
+    ctx.lineTo(x + 26, y + 2 + r * 10);
+    ctx.stroke();
+  }
 
-  // label
-  ctx.fillStyle='#fff'; ctx.font='bold 10px Courier New'; ctx.textAlign='center'; // label text is white, bold 10px Courier New, centered on x position of enemy
-  ctx.fillText(LABELS[e.type],e.x,e.y+e.r+13); // draws label below enemy
+  // chest panel — dark rectangle with LEDs
+  ctx.fillStyle   = '#333';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.roundRect(x - 16, y, 32, 20, [4]);
+  ctx.fill(); ctx.stroke();
 
-  // legs
-  ctx.strokeStyle=col; ctx.lineWidth=4; ctx.lineCap='round'; // set stroke style for legs
-  var lk=Math.sin(e.leg)*10; // leg animation based on sine wave between -10 and 10 - creates walking motion for enemy
-  ctx.beginPath(); ctx.moveTo(e.x-e.r*0.3,e.y+e.r); ctx.lineTo(e.x-e.r*0.3,e.y+e.r+16+lk); ctx.stroke(); // draw left leg; moves opposite of right leg for walking motion; add 1k to y position
-  ctx.beginPath(); ctx.moveTo(e.x+e.r*0.3,e.y+e.r); ctx.lineTo(e.x+e.r*0.3,e.y+e.r+16-lk); ctx.stroke(); // draw right leg; moves opposite of left leg for walking motion; subtract 1k from y position
-  ctx.lineCap='butt'; // reset line cap to default for other drawings
+  // LED lights on chest panel — red, green, yellow
+  var ledCols = ['#f00', '#0f0', '#ff0'];
+  for (var l = 0; l < 3; l++) {
+    ctx.fillStyle   = ledCols[l];
+    ctx.shadowColor = ledCols[l];
+    ctx.shadowBlur  = 8;
+    ctx.beginPath();
+    ctx.arc(x - 8 + l * 8, y + 10, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  //arms
+  // left arm
+  ctx.fillStyle   = '#777';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.roundRect(x - 40, y - 4, 14, 24, [4]);
+  ctx.fill(); ctx.stroke();
+
+  // left claw 
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth   = 3;
+  ctx.lineCap     = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 36, y + 20); ctx.lineTo(x - 40, y + 30); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x - 30, y + 20); ctx.lineTo(x - 28, y + 30); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // right arm
+  ctx.fillStyle   = '#777';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.roundRect(x + 26, y - 4, 14, 24, [4]);
+  ctx.fill(); ctx.stroke();
+
+  // right claw
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth   = 3;
+  ctx.lineCap     = 'round';
+  ctx.beginPath(); ctx.moveTo(x + 30, y + 20); ctx.lineTo(x + 28, y + 30); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x + 36, y + 20); ctx.lineTo(x + 38, y + 30); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // head
+  ctx.fillStyle   = '#999';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 3;
+  ctx.beginPath();
+  ctx.arc(x, y - 22, 26, 0, Math.PI * 2); // round dome head
+  ctx.fill(); ctx.stroke();
+
+  // head rim 
+  ctx.fillStyle   = '#777';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 8, 28, 8, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+
+  // antenna
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth   = 3;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x, y - 48);
+  ctx.lineTo(x, y - 62);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // antenna ball — flashes red 
+  ctx.fillStyle   = frameCount % 30 < 15 ? '#f00' : '#800'; // blinks on and off
+  ctx.shadowColor = '#f00';
+  ctx.shadowBlur  = frameCount % 30 < 15 ? 14 : 4;
+  ctx.beginPath();
+  ctx.arc(x, y - 64, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.shadowBlur  = 0;
+
+  // angry eyes
+  ctx.fillStyle   = '#f00';
+  ctx.shadowColor = '#f00';
+  ctx.shadowBlur  = 12;
+
+  // left eye 
+  ctx.save();
+  ctx.translate(x - 12, y - 26);
+  ctx.rotate(0.2); // tilt inward
+  ctx.beginPath();
+  ctx.roundRect(-9, -4, 18, 8, [2]);
+  ctx.fill();
+  ctx.restore();
+
+  // right eye — mirrored angle
+  ctx.save();
+  ctx.translate(x + 12, y - 26);
+  ctx.rotate(-0.2);
+  ctx.beginPath();
+  ctx.roundRect(-9, -4, 18, 8, [2]);
+  ctx.fill();
+  ctx.restore();
+  ctx.shadowBlur = 0;
+
+  // eye outlines
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 1.5;
+  ctx.save();
+  ctx.translate(x - 12, y - 26); ctx.rotate(0.2);
+  ctx.beginPath(); ctx.roundRect(-9, -4, 18, 8, [2]); ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.translate(x + 12, y - 26); ctx.rotate(-0.2);
+  ctx.beginPath(); ctx.roundRect(-9, -4, 18, 8, [2]); ctx.stroke();
+  ctx.restore();
+
+  // angry mouth
+  ctx.strokeStyle = '#f00';
+  ctx.lineWidth   = 3;
+  ctx.lineCap     = 'round';
+  ctx.shadowColor = '#f00';
+  ctx.shadowBlur  = 8;
+  ctx.beginPath();
+  ctx.moveTo(x - 10, y - 12);
+  ctx.lineTo(x + 10, y - 12); 
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.lineCap = 'butt';
+
+  // sparks - fly off body
+  if (spark) {
+    var sparkPositions = [[-24, 5], [24, 8], [-20, -10], [22, -14]];
+    for (var s = 0; s < sparkPositions.length; s++) {
+      var sx = x + sparkPositions[s][0];
+      var sy = y + sparkPositions[s][1];
+      ctx.strokeStyle = '#ff0';
+      ctx.shadowColor = '#ff0';
+      ctx.shadowBlur  = 10;
+      ctx.lineWidth   = 2;
+      ctx.lineCap     = 'round';
+      // small star shaped spark — 4 lines crossing
+      ctx.beginPath(); ctx.moveTo(sx - 4, sy); ctx.lineTo(sx + 4, sy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx, sy - 4); ctx.lineTo(sx, sy + 4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx - 3, sy - 3); ctx.lineTo(sx + 3, sy + 3); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx + 3, sy - 3); ctx.lineTo(sx - 3, sy + 3); ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  ctx.restore();
+if(!window.introMode){
+  ctx.font = 'bold 11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+  ctx.strokeText('ROBOT', x, y + 58);
+  ctx.fillStyle = '#fff';
+  ctx.fillText('ROBOT', x, y + 58);
+}
+
+}
+// Safety Officer
+function drawSafetyOfficer(e) {
+  var x    = e.x, y = e.y;
+  var flip = e.vx < 0;
+  var leg  = Math.sin(e.leg) * 9;  // leg walk animation
+
+  ctx.save();
+  if (flip) { ctx.translate(x * 2, 0); ctx.scale(-1, 1); }
+
+  //legs
+  ctx.strokeStyle = '#334';
+  ctx.lineWidth   = 14; 
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x - 14, y + 30); ctx.lineTo(x - 16, y + 52 + leg); ctx.stroke(); 
+  ctx.beginPath();
+  ctx.moveTo(x + 14, y + 30); ctx.lineTo(x + 16, y + 52 - leg); ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // boots — big chunky black boots
+  ctx.fillStyle   = '#222';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2.5;
+  ctx.beginPath();
+  ctx.roundRect(x - 28, y + 50 + leg, 22, 14, [4]);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.roundRect(x + 6,  y + 50 - leg, 22, 14, [4]);
+  ctx.fill(); ctx.stroke();
+
+  // boot toe caps — bright yellow safety toe
+  ctx.fillStyle = '#f7c948';
+  ctx.beginPath();
+  ctx.roundRect(x - 28, y + 50 + leg, 10, 14, [4, 0, 0, 4]);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(x + 18, y + 50 - leg, 10, 14, [0, 4, 4, 0]);
+  ctx.fill();
+
+  // body
+  // base shirt underneath
+  ctx.fillStyle   = '#334';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 3;
+  ctx.beginPath();
+  ctx.roundRect(x - 30, y - 10, 60, 42, [6]);
+  ctx.fill(); ctx.stroke();
+
+  // orange  vest on top
+  ctx.fillStyle   = '#ff8800';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(x - 30, y - 10);      // left shoulder
+  ctx.lineTo(x - 30, y + 32);      // left bottom
+  ctx.lineTo(x + 30, y + 32);      // right bottom
+  ctx.lineTo(x + 30, y - 10);      // right shoulder
+  ctx.lineTo(x + 14, y - 10);      // right lapel start
+  ctx.lineTo(x + 8,  y + 14);      // right lapel bottom
+  ctx.lineTo(x - 8,  y + 14);      // left lapel bottom
+  ctx.lineTo(x - 14, y - 10);      // left lapel start
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  //  reflective stripes — two bright yellow horizontal bands
+  ctx.fillStyle   = '#f7c948';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.roundRect(x - 30, y + 4,  60, 7, [2]);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.roundRect(x - 30, y + 18, 60, 7, [2]);
+  ctx.fill(); ctx.stroke();
+
+  // badge on chest 
+  ctx.fillStyle   = '#f7c948';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(x - 6, y - 8, 14, 16, [2]);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#000';
+  ctx.font      = 'bold 5px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('SAFE', x + 1, y - 2);
+  ctx.fillText('TY', x + 1, y + 5);
+
+  // neck
+  ctx.fillStyle   = '#f5c8a0';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.roundRect(x - 14, y - 28, 28, 20, [4]); // wide thick neck
+  ctx.fill(); ctx.stroke();
+
+  // right arm
+  ctx.strokeStyle = '#ff8800'; // orange vest sleeve
+  ctx.lineWidth   = 16;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x + 28, y + 2);
+  ctx.lineTo(x + 50, y - 10); // arm extends forward and slightly up
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // pointing finger 
+  ctx.fillStyle   = '#f5c8a0';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.roundRect(x + 46, y - 16, 20, 8, [4]); // pointing finger
+  ctx.fill(); ctx.stroke();
+  // other fingers curled into fist
+  ctx.fillStyle = '#f5c8a0';
+  ctx.beginPath();
+  ctx.roundRect(x + 44, y - 8, 16, 10, [4]);
+  ctx.fill(); ctx.stroke();
+
+  // left arm- holding foam sprayer
+  ctx.strokeStyle = '#ff8800';
+  ctx.lineWidth   = 16;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x - 28, y + 2);
+  ctx.lineTo(x - 44, y + 16);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // foam sprayer body — red canister
+  ctx.fillStyle   = '#cc2020';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.roundRect(x - 62, y + 8, 24, 16, [4]);
+  ctx.fill(); ctx.stroke();
+
+  // sprayer nozzle
+  ctx.fillStyle   = '#888';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(x - 72, y + 11, 12, 6, [2]);
+  ctx.fill(); ctx.stroke();
+
+  // sprayer handle
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 3;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x - 52, y + 24);
+  ctx.lineTo(x - 52, y + 32);
+  ctx.lineTo(x - 42, y + 32);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // canister label — yellow stripe
+  ctx.fillStyle = '#f7c948';
+  ctx.beginPath();
+  ctx.roundRect(x - 58, y + 10, 8, 12, [2]);
+  ctx.fill();
+
+  // head
+  ctx.fillStyle   = '#f5c8a0';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 3;
+  ctx.beginPath();
+  ctx.roundRect(x - 22, y - 56, 44, 46, [8, 8, 12, 12]); // wide square jaw
+  ctx.fill(); ctx.stroke();
+
+  //helmet
+  ctx.fillStyle   = '#ff8800';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 3;
+  // helmet dome
+  ctx.beginPath();
+  ctx.ellipse(x, y - 48, 26, 18, 0, Math.PI, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // helmet brim
+  ctx.beginPath();
+  ctx.roundRect(x - 30, y - 52, 60, 10, [3]);
+  ctx.fill(); ctx.stroke();
+
+  // helmet stripe — white stripe across top
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.roundRect(x - 18, y - 64, 36, 6, [3]);
+  ctx.fill();
+
+  // helmet badge
+  ctx.fillStyle   = '#f7c948';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.arc(x, y - 60, 6, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+
+  // face features 
+  // small beady determined eyes
+  ctx.fillStyle   = '#fff';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath(); ctx.arc(x - 10, y - 34, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x + 10, y - 34, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+  // pupils — looking straight ahead
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(x - 9,  y - 34, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 11, y - 34, 3, 0, Math.PI * 2); ctx.fill();
+
+  // eye reflection
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x - 8,  y - 36, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 12, y - 36, 1.2, 0, Math.PI * 2); ctx.fill();
+
+  // thick eyebrows 
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth   = 3.5;
+  ctx.lineCap     = 'round';
+  ctx.beginPath(); ctx.moveTo(x - 16, y - 42); ctx.lineTo(x - 4, y - 40); ctx.stroke(); // left brow — angled down
+  ctx.beginPath(); ctx.moveTo(x + 16, y - 42); ctx.lineTo(x + 4, y - 40); ctx.stroke(); // right brow — angled down
+  ctx.lineCap = 'butt';
+
+  // mouth - no smile
+  ctx.strokeStyle = '#a06040';
+  ctx.lineWidth   = 2.5;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x - 10, y - 22);
+  ctx.lineTo(x + 10, y - 22); // dead straight line — zero expression
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  // nose 
+  ctx.strokeStyle = '#d4a070';
+  ctx.lineWidth   = 2;
+  ctx.lineCap     = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x - 3, y - 28);
+  ctx.lineTo(x,     y - 24);
+  ctx.lineTo(x + 3, y - 28);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+
+  ctx.restore();
+if(!window.introMode){
+  ctx.font = 'bold 11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+  ctx.strokeText('OFFICER', x, y + 72);
+  ctx.fillStyle = '#fff';
+  ctx.fillText('OFFICER', x, y + 72);
+}
+
+  
+}
+
+
+function drawEnemy(e) {
+  if (e.type === 0) drawInspector(e);
+  else if (e.type === 1) drawRobot(e);
+  else if (e.type === 2) drawSafetyOfficer(e);
+  else if (e.type === 3) drawChicken(e);
 }
 
 // Projectiles
@@ -270,6 +1176,226 @@ function drawShieldReadyHint(){ // if shield is ready but not active, show hint 
   ctx.fillStyle='rgba(100,255,180,0.8)'; ctx.font='bold 13px Courier New'; ctx.textAlign='left';// light green, bold 13px Courier New, left aligned
   ctx.fillText('SHIELD READY — raise both arms!', 20, H-20); // displays "SHIELD READY - raise both arms!" in bottom left corner to prompt player to use shield when it's available; gives player feedback that they can activate shield and how to do it
 }
+//draw lab
+function drawLab() {
+  var W = canvas.width, H = canvas.height;
+
+  // wall
+  // dark purple background matching home screen
+  ctx.fillStyle = '#1a0a2e';
+  ctx.fillRect(0, 0, W, H);
+
+  // floor
+  // slightly lighter purple floor starting at 78% of screen height
+  ctx.fillStyle = '#2a1245';
+  ctx.fillRect(0, H * 0.78, W, H * 0.22);
+
+  // floor dividing line with thick black cartoon outline
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, H * 0.78);
+  ctx.lineTo(W, H * 0.78);
+  ctx.stroke();
+
+  // floor tile lines — vertical lines across floor
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+  ctx.lineWidth = 1.5;
+  for (var x = 0; x < W; x += W / 10) {
+    ctx.beginPath();
+    ctx.moveTo(x, H * 0.78);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+
+  // left shelf
+  drawShelf(W * 0.04, H * 0.12, W * 0.18, H);
+
+  //right shelf
+  drawShelf(W * 0.78, H * 0.12, W * 0.18, H);
+
+  // wall details
+  // subtle horizontal lines to look like brick
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (var y = H * 0.08; y < H * 0.78; y += H * 0.08) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+}
+
+// shelf helper
+// draws a wooden shelf with test tubes and beakers on it
+// x, y = top left corner of shelf area; shelfW = width of shelf
+function drawShelf(x, y, shelfW, H) {
+
+  // shelf board
+  // wooden plank — brown rectangle with black outline
+  ctx.fillStyle = '#5a3010';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(x - 4, y + H * 0.18, shelfW + 8, 14, [3]);
+  ctx.fill();
+  ctx.stroke();
+
+  // second shelf below
+  ctx.beginPath();
+  ctx.roundRect(x - 4, y + H * 0.38, shelfW + 8, 14, [3]);
+  ctx.fill();
+  ctx.stroke();
+
+  // shelf support brackets on each side
+  ctx.fillStyle = '#3a2008';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  // left bracket
+  ctx.beginPath();
+  ctx.moveTo(x + 8, y + H * 0.18);
+  ctx.lineTo(x + 8, y + H * 0.18 + 30);
+  ctx.lineTo(x + 28, y + H * 0.18 + 30);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // right bracket
+  ctx.beginPath();
+  ctx.moveTo(x + shelfW - 8, y + H * 0.18);
+  ctx.lineTo(x + shelfW - 8, y + H * 0.18 + 30);
+  ctx.lineTo(x + shelfW - 28, y + H * 0.18 + 30);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // top shelf test tubes
+  var tubeColors = ['#39ff14', '#b44fff', '#f7c948', '#00e5ff', '#ff4444'];
+  var tubeCount  = 5;
+  var tubeSpacing = shelfW / (tubeCount + 1);
+
+  for (var i = 0; i < tubeCount; i++) {
+    var tx  = x + tubeSpacing * (i + 1); // evenly spaced x position
+    var ty  = y + H * 0.18 - 52;         // sits on top of shelf
+    var col = tubeColors[i % tubeColors.length];
+
+    // glass tube body — rounded at bottom, open at top
+    ctx.fillStyle   = 'rgba(200,220,255,0.15)'; // semi-transparent glass
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth   = 2.5;
+    ctx.beginPath();
+    ctx.roundRect(tx - 7, ty, 14, 48, [0, 0, 7, 7]); // rounded bottom only
+    ctx.fill();
+    ctx.stroke();
+
+    // liquid inside tube — colored fill in bottom half
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.75;
+    ctx.beginPath();
+    ctx.roundRect(tx - 6, ty + 24, 12, 22, [0, 0, 6, 6]);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // glow around liquid
+    ctx.shadowColor = col;
+    ctx.shadowBlur  = 10;
+    ctx.fillStyle   = col;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath();
+    ctx.roundRect(tx - 7, ty, 14, 48, [0, 0, 7, 7]);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur  = 0;
+
+    // bubbles rising in tube — animated using frameCount
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    var bubbleY = ty + 40 - ((frameCount * 0.8 + i * 20) % 36);
+    ctx.beginPath();
+    ctx.arc(tx, bubbleY, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // bottom shelf beakers
+  var beakerColors = ['#39ff14', '#f7c948', '#b44fff'];
+  var beakerCount  = 3;
+  var beakerSpacing = shelfW / (beakerCount + 1);
+
+  for (var i = 0; i < beakerCount; i++) {
+    var bx  = x + beakerSpacing * (i + 1); // x position
+    var by  = y + H * 0.38 - 55;           // sits on bottom shelf
+    var bw  = 22;                            // beaker width
+    var bh  = 42;                            // beaker height
+    var col = beakerColors[i % beakerColors.length];
+
+    // beaker glass body — trapezoid shape (wider at top)
+    ctx.fillStyle   = 'rgba(200,220,255,0.15)';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth   = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(bx - bw * 0.6, by);          // top left
+    ctx.lineTo(bx + bw * 0.6, by);          // top right
+    ctx.lineTo(bx + bw * 0.45, by + bh);    // bottom right (slightly narrower)
+    ctx.lineTo(bx - bw * 0.45, by + bh);    // bottom left
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // beaker spout — small rectangle at top left
+    ctx.fillStyle   = 'rgba(200,220,255,0.2)';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth   = 2;
+    ctx.beginPath();
+    ctx.moveTo(bx - bw * 0.6, by);
+    ctx.lineTo(bx - bw * 0.75, by - 8);
+    ctx.lineTo(bx - bw * 0.45, by - 8);
+    ctx.lineTo(bx - bw * 0.3, by);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // liquid in beaker — fills bottom 60%
+    ctx.fillStyle   = col;
+    ctx.globalAlpha = 0.65;
+    ctx.beginPath();
+    ctx.moveTo(bx - bw * 0.55, by + bh * 0.4); // liquid surface left
+    ctx.lineTo(bx + bw * 0.55, by + bh * 0.4); // liquid surface right
+    ctx.lineTo(bx + bw * 0.45, by + bh);
+    ctx.lineTo(bx - bw * 0.45, by + bh);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // glow on beaker liquid
+    ctx.shadowColor = col;
+    ctx.shadowBlur  = 12;
+    ctx.strokeStyle = col;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(bx - bw * 0.55, by + bh * 0.4);
+    ctx.lineTo(bx + bw * 0.55, by + bh * 0.4);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // measurement lines on beaker side
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth   = 1;
+    for (var m = 1; m <= 3; m++) {
+      var lineY = by + bh * (m / 4);
+      ctx.beginPath();
+      ctx.moveTo(bx + bw * 0.3, lineY);
+      ctx.lineTo(bx + bw * 0.5, lineY);
+      ctx.stroke();
+    }
+
+    // bubbles on surface of liquid — animated
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    if (frameCount % 30 < 15) { // blink on and off
+      ctx.beginPath();
+      ctx.arc(bx - 4, by + bh * 0.38, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(bx + 5, by + bh * 0.36, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
 
 //Orb
 function drawOrb(){
@@ -320,36 +1446,242 @@ function screenPt(lmk){ // takes landmark position from MediaPipe (x and y betwe
   return { x:(1-lmk.x)*canvas.width, y:lmk.y*canvas.height };
 }
 function drawScientist(){
-  if(!landmarks) return; // if mediaPipe hasn't detected a person yet, landmarks will be null, so don't try to draw anything
-  var shCol = shieldActive ? '#2c97ed' : '#1eb10d'; // skeleton color changes based on shield state; bright blue when shield is active, bright green when not
-  // loop through every segment in SEGS array and draw a line for each one; for each:
-  ctx.strokeStyle=shCol; ctx.lineWidth=8; ctx.lineCap='round';
-  for(var s=0;s<SEGS.length;s++){ // 
-    var a=getLM(SEGS[s][0]), b=getLM(SEGS[s][1]); // gets the two landmarks that define the endpoints of the segment
-    if(!a||!b) continue; // if either landmark is missing (not detected or low confidence), skip drawing this segment
-    var sa=screenPt(a), sb=screenPt(b); // converts landmark positions to screen coordinates for drawing
-    ctx.beginPath(); ctx.moveTo(sa.x,sa.y); // lifts pen to start point
-     ctx.lineTo(sb.x,sb.y);  // draws line to end point
-     ctx.stroke(); // strokes the line
+  if (!landmarks) return; // if MediaPipe hasn't detected a body yet, don't draw anything
+
+  var W = canvas.width, H = canvas.height;
+  var shCol = shieldActive ? '#44aaff' : '#00ff88'; // skeleton color: blue when shield is active, green when not
+
+  // helper — converts landmark index to screen position
+  function sp(i) {
+    var l = getLM(i);
+    return l ? screenPt(l) : null;
   }
 
-  ctx.lineCap='butt'; // flat ends on lines
-  ctx.fillStyle='#fff'; // white circles for joints
-  for(var i=0;i<33;i++){ // loop through all 33 landmarks; draw a circle for each one to show joints; if landmark is missing, skip it
-    var p=getLM(i); if(!p) continue; // gets landmark position; if missing, skip to next iteration
-    var sp=screenPt(p); // converts landmark position to screen coordinates
-    ctx.beginPath(); ctx.arc(sp.x,sp.y,5,0,Math.PI*2); ctx.fill(); // draws circle at joint position; radius 5, filled with white
+  // get all the key body points we need
+  var lSh = sp(11), rSh = sp(12);   // shoulders
+  var lEl = sp(13), rEl = sp(14);   // elbows
+  var lWr = sp(15), rWr = sp(16);   // wrists
+  var lHip = sp(23), rHip = sp(24); // hips
+  var lKn = sp(25), rKn = sp(26);   // knees
+  var lAn = sp(27), rAn = sp(28);   // ankles
+  var nose = sp(0);                  // nose — used to position the head
+
+  if (!lSh || !rSh) return; // need at least shoulders to draw anything
+
+  var sw = Math.abs(lSh.x - rSh.x); // shoulder width in pixels — used to scale everything proportionally
+  var mid = { x: (lSh.x + rSh.x) / 2, y: (lSh.y + rSh.y) / 2 }; // midpoint between shoulders
+  var hr = sw * 0.42; // head radius — scales with shoulder width so head size matches distance from camera
+
+  // legs
+  ctx.lineWidth = sw * 0.22; // leg thickness scales with shoulder width
+  ctx.lineCap = 'round';     // rounded ends so joints look smooth
+  ctx.strokeStyle = '#2a2a3a'; // dark navy colour for trousers
+
+  // helper — draws a limb as a line through up to 3 points
+  function drawLimb(a, b, c) {
+    if (!a) return; // skip if first point isn't visible
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    if (b) ctx.lineTo(b.x, b.y);
+    if (b && c) ctx.lineTo(c.x, c.y);
+    ctx.stroke();
   }
-  var nose=getLM(0), lSh=getLM(11), rSh=getLM(12); // gets nose and shoulder landmarks to position shield indicator; if nose is missing, won't draw shield indicator; if shoulders are missing, will use default size for indicator
-  if(nose){
-    var hr=lSh&&rSh?Math.abs((1-lSh.x)-(1-rSh.x))*canvas.width*0.22:30; // gets pixel distance between two shoulders; .22 makes head radius 22% of that width  - head size will scale based on how far or close you are from camera
-    var sn=screenPt(nose); // gets screen coordinates of nose to use as center point for shield indicator
-    ctx.beginPath(); ctx.arc(sn.x,sn.y-hr*0.5,hr,0,Math.PI*2); // // draws circle half a radius above the nose
-    ctx.fillStyle='rgba(0,255,136,0.2)'; ctx.fill(); // light green with low opacity for shield indicator background
-    ctx.strokeStyle=shCol; ctx.lineWidth=3; ctx.stroke();
+
+  drawLimb(lHip, lKn, lAn); // left leg: hip,  knee , ankle
+  drawLimb(rHip, rKn, rAn); // right leg: hip , knee , ankle
+
+  // shoes
+  function drawShoe(ankle) {
+    if (!ankle) return; // skip if ankle isn't visible
+    ctx.fillStyle = '#111';  // dark shoe colour
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    // draw oval shoe slightly in front of and below ankle position
+    ctx.ellipse(ankle.x + sw * 0.06, ankle.y + sw * 0.05, sw * 0.13, sw * 0.06, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   }
+  drawShoe(lAn); // left shoe
+  drawShoe(rAn); // right shoe
+
+  // torso - lab coat
+  if (lHip && rHip) { // only draw coat if hips are visible so we know where it ends
+
+    // main coat body — filled shape connecting shoulders to hips
+    ctx.fillStyle = '#eef0f5';  // off-white coat colour
+    ctx.strokeStyle = '#b0b8cc'; // light grey outline
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(lSh.x - sw * 0.12, lSh.y);   // top left (left shoulder)
+    ctx.lineTo(lHip.x - sw * 0.18, lHip.y); // bottom left (left hip)
+    ctx.lineTo(rHip.x + sw * 0.18, rHip.y); // bottom right (right hip)
+    ctx.lineTo(rSh.x + sw * 0.12, rSh.y);   // top right (right shoulder)
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // left lapel — darker triangle on left side of coat opening
+    ctx.fillStyle = '#d8dce8';
+    ctx.beginPath();
+    ctx.moveTo(mid.x, lSh.y + hr * 0.4);
+    ctx.lineTo(lSh.x + sw * 0.08, lSh.y + hr * 1.1);
+    ctx.lineTo(mid.x - sw * 0.1, lHip.y * 0.55 + lSh.y * 0.45);
+    ctx.closePath();
+    ctx.fill();
+
+    // right lapel — mirrored triangle on right side
+    ctx.beginPath();
+    ctx.moveTo(mid.x, rSh.y + hr * 0.4);
+    ctx.lineTo(rSh.x - sw * 0.08, rSh.y + hr * 1.1);
+    ctx.lineTo(mid.x + sw * 0.1, rHip.y * 0.55 + rSh.y * 0.45);
+    ctx.closePath();
+    ctx.fill();
+
+    // chest pocket — small rectangle on left side of coat
+    ctx.fillStyle = '#ccd0de';
+    ctx.strokeStyle = '#b0b8cc';
+    ctx.lineWidth = 1;
+    ctx.fillRect(lSh.x - sw * 0.04, (lSh.y + lHip.y) / 2, sw * 0.16, hr * 0.35);
+    ctx.strokeRect(lSh.x - sw * 0.04, (lSh.y + lHip.y) / 2, sw * 0.16, hr * 0.35);
+  }
+
+  // arms - coat sleeves
+  ctx.strokeStyle = '#eef0f5'; // white coat colour for sleeves
+  ctx.lineWidth = sw * 0.18;   // slightly thinner than legs
+  ctx.lineCap = 'round';
+  drawLimb(lSh, lEl, lWr); // left arm: shoulder → elbow → wrist
+  drawLimb(rSh, rEl, rWr); // right arm: shoulder → elbow → wrist
+
+  // subtle outline on top of sleeve to give it definition
+  ctx.strokeStyle = '#b0b8cc';
+  ctx.lineWidth = 1.5;
+  drawLimb(lSh, lEl, lWr);
+  drawLimb(rSh, rEl, rWr);
+  ctx.lineCap = 'butt'; // reset to flat ends
+
+  // gloves
+  function drawGlove(wrist) {
+    if (!wrist) return; // skip if wrist isn't visible
+    ctx.fillStyle = '#5599ee';  // blue rubber glove colour
+    ctx.strokeStyle = '#3377cc'; // darker blue outline
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(wrist.x, wrist.y, sw * 0.1, 0, Math.PI * 2); // circle at wrist position
+    ctx.fill();
+    ctx.stroke();
+  }
+  drawGlove(lWr); // left glove
+  drawGlove(rWr); // right glove
+
+  // head
+  // use nose position if visible, otherwise fall back to shoulder midpoint
+  var hx = nose ? nose.x : mid.x;
+  var hy = nose ? nose.y : mid.y - hr * 1.4;
+
+  // neck — small rectangle connecting head to coat
+  ctx.fillStyle = '#f0c090'; // skin colour
+  ctx.fillRect(hx - sw * 0.08, hy + hr * 0.6, sw * 0.16, hr * 0.5);
+
+  // face — slightly oval skin-toned ellipse
+  ctx.fillStyle = '#f5c8a0';  // skin colour
+  ctx.strokeStyle = '#d4a070'; // slightly darker outline
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(hx, hy, hr * 0.78, hr, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // hair
+  ctx.fillStyle = '#eeeeee';  // white hair
+  ctx.strokeStyle = '#cccccc';
+  ctx.lineWidth = 1;
+
+  // main hair poof — large bezier curve shape sitting behind and above head
+  ctx.beginPath();
+  ctx.moveTo(hx - hr * 0.82, hy - hr * 0.1); // start at left side of head
+  ctx.bezierCurveTo(
+    hx - hr * 1.4, hy - hr * 1.5,  // left control point — pulls hair out to the left
+    hx - hr * 0.4, hy - hr * 2.1,  // top left control point
+    hx, hy - hr * 1.9              // top center of hair
+  );
+  ctx.bezierCurveTo(
+    hx + hr * 0.4, hy - hr * 2.1,  // top right control point
+    hx + hr * 1.4, hy - hr * 1.5,  // right control point
+    hx + hr * 0.82, hy - hr * 0.1  // end at right side of head
+  );
+  ctx.fill();
+  ctx.stroke();
+
+  // stray hair spikes — short lines shooting out from the poof for a wild look
+  ctx.strokeStyle = '#dddddd';
+  ctx.lineWidth = hr * 0.1;
+  ctx.lineCap = 'round';
+  var spikes = [
+    [-1.5, -0.7], [-1.2, -1.5], [-0.5, -2.2], // left side spikes
+    [0.3, -2.3], [1.1, -1.8], [1.45, -0.9]     // right side spikes
+  ];
+  for (var i = 0; i < spikes.length; i++) {
+    ctx.beginPath();
+    ctx.moveTo(hx + spikes[i][0] * hr * 0.65, hy + spikes[i][1] * hr * 0.55); // base of spike
+    ctx.lineTo(hx + spikes[i][0] * hr * 0.95, hy + spikes[i][1] * hr * 0.85); // tip of spike
+    ctx.stroke();
+  }
+  ctx.lineCap = 'butt'; // reset
+
+  // goggles
+  var gy = hy - hr * 0.08; // vertical center of goggles — slightly above face center
+
+  // strap — horizontal line across head behind lenses
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = hr * 0.1;
+  ctx.beginPath();
+  ctx.moveTo(hx - hr * 0.88, gy);
+  ctx.lineTo(hx + hr * 0.88, gy);
+  ctx.stroke();
+
+  // left lens — blue tinted circle
+  ctx.fillStyle = 'rgba(80,180,255,0.38)';
+  ctx.strokeStyle = '#777';
+  ctx.lineWidth = hr * 0.1;
+  ctx.beginPath();
+  ctx.arc(hx - hr * 0.3, gy, hr * 0.27, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // right lens
+  ctx.beginPath();
+  ctx.arc(hx + hr * 0.3, gy, hr * 0.27, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // shine highlights — small white circles to make lenses look glossy
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath();
+  ctx.arc(hx - hr * 0.37, gy - hr * 0.1, hr * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(hx + hr * 0.23, gy - hr * 0.1, hr * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  // bridge — small line connecting the two lenses
+  ctx.strokeStyle = '#777';
+  ctx.lineWidth = hr * 0.07;
+  ctx.beginPath();
+  ctx.moveTo(hx - hr * 0.03, gy);
+  ctx.lineTo(hx + hr * 0.03, gy);
+  ctx.stroke();
+
+  // head glow
+  // subtle ring around head that changes color when shield is active
+  ctx.beginPath();
+  ctx.arc(hx, hy - hr * 0.1, hr * 1.05, 0, Math.PI * 2);
+  ctx.strokeStyle = shCol; // green normally, blue when shield is active
+  ctx.lineWidth = 3;
+  ctx.globalAlpha = 0.35;  // semi-transparent so it's subtle
+  ctx.stroke();
+  ctx.globalAlpha = 1;     // reset opacity for everything drawn after
 }
-
 //collision
 function distPS(px,py,ax,ay,bx,by){ // distance from point to line segment
   // takes 6 arguments: px, py (point coordinates - enemy or projectile); ax,ay to bx,by (line segment endpoints - body segments defined in SEGS array)
@@ -423,10 +1755,8 @@ function loop(){
   var cx=W/2, cy=H/2;
 
   // Background
-  ctx.fillStyle='#0a0a1a'; ctx.fillRect(0,0,W,H); // fill background with dark color every frame
-  ctx.strokeStyle='#222'; ctx.lineWidth=2; // draws subtle horizontal line for floor line
-  ctx.beginPath(); ctx.moveTo(0,H*0.82); ctx.lineTo(W,H*0.82); ctx.stroke(); // picks up pen, moves to left edge at 82% of screen height, draws line to right edge at same height, then strokes it to make it visible
-
+  drawLab();
+  
   // detect poses
   // Shield
   if(shieldActive){ // only runs when shield is active; counts down shield timer and deactivates shield when timer runs out
